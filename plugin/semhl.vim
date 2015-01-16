@@ -61,13 +61,19 @@ function! s:semHighlight()
 		call s:buildColors()
 	endif
 
-	let buflen = line('$')
+	let l:bufferLines = getline(1, '$')
+
+	if exists('*SemanticHighlightWillBegin_' . &filetype)
+		exec 'call SemanticHighlightWillBegin_' . &filetype . '(' . string(l:bufferLines) . ')'
+	endif
+
+	" let buflen = line('$')
 	let pattern = '\<[\$]*[a-zA-Z\_][a-zA-Z0-9\_]*\>'
 	let cur_color = 0
 	let colorLen = len(s:semanticColors)
 
-	while buflen
-		let curline = getline(buflen)
+	let l:lineNumber = 0
+	for curline in l:bufferLines
 		let index = 0
 		while 1
 			let match = matchstr(curline, pattern, index)
@@ -78,14 +84,41 @@ function! s:semHighlight()
 
 			let l:no_blacklist_exists_for_filetype = empty(s:blacklist) || !has_key(s:blacklist, &filetype)
 			if (l:no_blacklist_exists_for_filetype || index(s:blacklist[&filetype], match) == -1)
-				execute 'syn keyword _semantic' . s:getCachedColor(cur_color, match) . " containedin=phpBracketInString,phpVarSelector,phpClExpressions,phpIdentifier " . match
+				let l:modifiedMatch = match
+				if exists('*SemanticHighlightWillHighlight_' . &filetype)
+					redir => l:modifiedMatch
+					silent exec('call SemanticHighlightWillHighlight_' . &filetype . '(' . string({ 'match': match, 'lineNumber': l:lineNumber }) . ')')
+					redir END
+				endif
+				echo l:modifiedMatch
+				execute 'syn keyword _semantic' . s:getCachedColor(cur_color, l:modifiedMatch) . " containedin=phpBracketInString,phpVarSelector,phpClExpressions,phpIdentifier " . match
 				let cur_color = (cur_color + 1) % colorLen
 			endif
 
 			let index += len(match) + 1
 		endwhile
-		let buflen -= 1
-	endwhile
+		let l:lineNumber += 1
+	endfor
+	" while buflen
+	" 	let curline = getline(buflen)
+		" let index = 0
+		" while 1
+		" 	let match = matchstr(curline, pattern, index)
+
+		" 	if (empty(match))
+		" 		break
+		" 	endif
+
+		" 	let l:no_blacklist_exists_for_filetype = empty(s:blacklist) || !has_key(s:blacklist, &filetype)
+		" 	if (l:no_blacklist_exists_for_filetype || index(s:blacklist[&filetype], match) == -1)
+		" 		execute 'syn keyword _semantic' . s:getCachedColor(cur_color, match) . " containedin=phpBracketInString,phpVarSelector,phpClExpressions,phpIdentifier " . match
+		" 		let cur_color = (cur_color + 1) % colorLen
+		" 	endif
+
+		" 	let index += len(match) + 1
+		" endwhile
+		" let buflen -= 1
+	" endwhile
 endfunction
 
 function! s:buildColors()
